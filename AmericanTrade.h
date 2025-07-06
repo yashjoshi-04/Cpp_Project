@@ -1,64 +1,49 @@
-#ifndef _AMERICAN_TRADE
-#define _AMERICAN_TRADE
+#ifndef AMERICAN_TRADE_H 
+#define AMERICAN_TRADE_H
 
-#include <cassert> 
-
-#include "TreeProduct.h"
-#include "Types.h"
-#include "Payoff.h"
+#include "TreeProduct.h" 
+#include "Payoff.h"      
+#include "Types.h"       
+#include "Market.h"      
+#include <string>
+#include <algorithm>    // For std::max
 
 class AmericanOption : public TreeProduct {
 public:
-	AmericanOption(OptionType _optType, double _strike, const Date& _expiry, const std::string& underlyingInstrument = "") :
-		TreeProduct(underlyingInstrument), optType(_optType), strike(_strike), expiryDate(_expiry) {
-	}
-	virtual double Payoff(double S) const
-	{
-		return PAYOFF::VanillaOption(optType, strike, S);
-	}
-	virtual const Date& GetExpiry() const
-	{
-		return expiryDate;
-	}
-	virtual double ValueAtNode(double S, double t, double continuation) const
-	{
-		return std::max(Payoff(S), continuation);
-	}
+    AmericanOption(); 
+    AmericanOption(OptionType optType,
+                   double strikePrice,
+                   const Date& expiryDt,
+                   const std::string& underlyingInstName,
+                   const std::string& discountCurveName = "USD-SOFR", 
+                   const std::string& volCurveName = "VOL_CURVE_DEFAULT");
 
-	// Public getters for option properties
-	OptionType getOptionType() const { return optType; }
-	double getStrike() const { return strike; }
+    
+    double Pv(const Market& mkt) const override; 
+    double Payoff(double S) const override;
+    const Date& GetExpiry() const override;
+    
+    double ValueAtNode(double S, double t, double continuation) const override;
 
-private:
-	OptionType optType;
-	double strike;
-	Date expiryDate;
+    
+    Date getMaturityDate() const override { return GetExpiry(); }
+    
+    std::string getRateCurveName() const override { return discountCurveName; }
+    std::string getVolCurveName() const override { return volatilityCurveName; }
+
+    
+    OptionType getOptionType() const { return optionType; }
+    double getStrike() const { return strike; }
+
+protected:
+    OptionType optionType;
+    double strike;
+    Date expiryDate; 
+    
+    std::string discountCurveName;
+    std::string volatilityCurveName;
 };
 
-class AmerCallSpread : public TreeProduct {
-public:
-	AmerCallSpread(double _k1, double _k2, const Date& _expiry)
-		: strike1(_k1), strike2(_k2), expiryDate(_expiry)
-	{
-		assert(_k1 < _k2);
-	};
-	virtual double Payoff(double S) const
-	{
-		return PAYOFF::CallSpread(strike1, strike2, S);
-	}
-	virtual const Date& GetExpiry() const
-	{
-		return expiryDate;
-	}
-	virtual double ValueAtNode(double S, double t, double continuation) const
-	{
-		return std::max(Payoff(S), continuation);
-	}
 
-private:
-	double strike1;
-	double strike2;
-	Date expiryDate;
-};
-
-#endif
+#endif // AMERICAN_TRADE_H
+//Updated
