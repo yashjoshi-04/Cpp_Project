@@ -4,154 +4,110 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
-#include <cstring> // Added for strlen and strcpy
+#include <string>
+#include <memory> // Required for std::shared_ptr
+#include <algorithm> // Required for std::sort
+#include <fstream>   // Required for file operations in load methods
+#include <sstream>   // Required for parsing lines
+
 #include "Date.h"
 
-using namespace std;
+// Forward declaration for imp::linearInterpolate if it's in a separate utility
+// Based on prompt, it was in a namespace `imp`.
+namespace imp {
+    double linearInterpolate(double x0, double y0, double x1, double y1, double x);
+}
+
 
 class RateCurve {
 public:
-	RateCurve() {};
-	RateCurve(const string& _name) : name(_name) {};
-	void addRate(Date tenor, double rate);
-	double getRate(Date tenor) const; //implement this function using linear interpolation
-	void display() const;
-	bool isEmpty() const { return tenorDates.empty(); } // Added isEmpty
+    RateCurve() = default;
+    RateCurve(const std::string& crvName) : name(crvName) {}
+    
+    void addRate(const Date& tenor, double rate); // tenor const&
+    double getRate(const Date& tenor) const;   // tenor const&
+    void shock(double shockValue); // Parallel shock all rates
+    
+    void display() const;
+    bool isEmpty() const { return tenorDates.empty(); }
+    const std::string& getName() const { return name; }
+    const std::vector<Date>& getTenorDates() const { return tenorDates; }
+    const std::vector<double>& getRates() const { return rates; }
 
 private:
-	std::string name;
-	vector<Date> tenorDates;
-	vector<double> rates;
+    std::string name;
+    std::vector<Date> tenorDates; // Should be kept sorted by Date for efficient interpolation
+    std::vector<double> rates;
 };
 
-class VolCurve { // atm vol curve without smile
+class VolCurve {
 public:
-	VolCurve() {}
-	VolCurve(const string& _name) : name(_name) {};
-	void addVol(Date tenor, double rate); //implement this
-	double getVol(Date tenor) const; //implement this function using linear interpolation
-	void display() const; //implement this
-	bool isEmpty() const { return tenors.empty(); } // Added isEmpty
+    VolCurve() = default;
+    VolCurve(const std::string& crvName) : name(crvName) {}
+
+    void addVol(const Date& tenor, double vol); // tenor const&
+    double getVol(const Date& tenor) const;   // tenor const&
+    void shock(double shockValue); // Parallel shock all vols
+
+    void display() const;
+    bool isEmpty() const { return tenors.empty(); }
+    const std::string& getName() const { return name; }
+    const std::vector<Date>& getTenors() const { return tenors; }
+    const std::vector<double>& getVols() const { return vols; }
 
 private:
-	string name;
-	vector<Date> tenors;
-	vector<double> vols;
+    std::string name;
+    std::vector<Date> tenors; // Should be kept sorted by Date
+    std::vector<double> vols;
 };
 
-class Market
-{
+class Market {
 public:
-	Date asOf;
-	char* name;
+    Date asOf;
+    std::string name; // Changed from char*
 
-	Market() : name(nullptr) { // Initialize name to nullptr
-		// cout << "default market constructor is called by object@" << this << endl; // Removed
-	}
+    Market();
+    Market(const Date& now, const std::string& marketName = "defaultMarket");
+    
+    Market(const Market& other); 
+    Market& operator=(const Market& other); 
+    ~Market() = default;
 
-	Market(const Date& now) : asOf(now) {
-		// cout << "market constructor is called by object@" << this << endl; // Removed
-		const char* testName = "test";
-		size_t len = strlen(testName) + 1;
-		name = new char[len];
-		#if defined(_WIN32) || defined(_WIN64)
-			strcpy_s(name, len, testName);
-		#else
-			strcpy(name, testName);
-		#endif
-	}
+    void Print() const;
+    
+    void addCurve(const std::string& curveName, std::shared_ptr<RateCurve> curve);
+    void addVolCurve(const std::string& volCurveName, std::shared_ptr<VolCurve> volCurve);
+    
+    void addBondPrice(const std::string& bondName, double price);
+    void addStockPrice(const std::string& stockName, double price);
+    
+    double getStockPrice(const std::string& stockName) const;
 
-	Market(const Market& other) : asOf(other.asOf), name(nullptr) { // Initialize name to nullptr
-		// cout << "copy constructor is called by object@" << this << endl; // Removed
-		// deep copy behaviour
-		if (other.name != nullptr) {
-			size_t len = strlen(other.name) + 1;
-			name = new char[len];
-			#if defined(_WIN32) || defined(_WIN64)
-				strcpy_s(name, len, other.name);
-			#else
-				strcpy(name, other.name);
-			#endif
-		}
-	}
+    std::shared_ptr<const RateCurve> getCurve(const std::string& curveName) const;
+    std::shared_ptr<RateCurve> getCurve(const std::string& curveName);
+    
+    std::shared_ptr<const VolCurve> getVolCurve(const std::string& volCurveName) const;
+    std::shared_ptr<VolCurve> getVolCurve(const std::string& volCurveName);
 
-	Market& operator=(const Market& other) {
-		// cout << "assignment constructor is called by object@" << this << endl; // Removed
-		if (this != &other) {  // Check for self-assignment
-			asOf = other.asOf;
-			// Deep copy for name
-			if (name != nullptr) {
-				delete[] name;
-				name = nullptr;
-			}
-			if (other.name != nullptr) {
-				size_t len = strlen(other.name) + 1;
-				name = new char[len];
-				#if defined(_WIN32) || defined(_WIN64)
-					strcpy_s(name, len, other.name);
-				#else
-					strcpy(name, other.name);
-				#endif
-			}
-			// Copy other members (unordered_maps are handled by their own assignment operators)
-			vols = other.vols;
-			curves = other.curves;
-			bondPrices = other.bondPrices;
-			stockPrices = other.stockPrices;
-		}
-		return *this;
-	}
-
-	~Market() {
-		// cout << "Market destructor is called" << endl; // Removed
-		if (name != nullptr)
-			delete[] name; // Use delete[] for arrays
-	}
-
-	void Print() const;
-	void addCurve(const std::string& curveName, const RateCurve& curve);//implement this
-	void addVolCurve(const std::string& curveName, const VolCurve& curve);
-	void addBondPrice(const std::string& bondName, double price);
-	void addStockPrice(const std::string& stockName, double price);
-    double getStockPrice(const std::string& stockName) const {
-		auto it = stockPrices.find(stockName);
-		if (it != stockPrices.end()) {
-			return it->second;
-		} else {
-			std::cerr << "Error: Stock price for '" << stockName << "' not found. Returning 0.0." << std::endl;
-			return 0.0;
-		}
-	}
-    // void PrintStockKeysForDebug() const; // DEBUG REMOVED
-
-	inline RateCurve getCurve(const string& name) const {
-		auto it = curves.find(name);
-		if (it != curves.end()) {
-			return it->second;
-		} else {
-			std::cerr << "Error: Rate curve '" << name << "' not found. Returning empty curve." << std::endl;
-			return RateCurve(); // Return a default-constructed (empty) RateCurve
-		}
-	}
-	inline VolCurve getVolCurve(const string& name) const {
-		auto it = vols.find(name);
-		if (it != vols.end()) {
-			return it->second;
-		} else {
-			std::cerr << "Error: Vol curve '" << name << "' not found. Returning empty curve." << std::endl;
-			return VolCurve(); // Return a default-constructed (empty) VolCurve
-		}
-	}
+    // Methods to load data from files - these will modify the market object
+    bool loadCurveDataFromFile(const std::string& filePath, const std::string& curveNameInFile, const std::string& marketCurveName);
+    bool loadVolDataFromFile(const std::string& filePath, const std::string& volCurveNameInFile, const std::string& marketVolCurveName);
+    bool loadStockPricesFromFile(const std::string& filePath);
+    bool loadBondPricesFromFile(const std::string& filePath);
 
 private:
+    std::unordered_map<std::string, std::shared_ptr<RateCurve>> curvesMap;
+    std::unordered_map<std::string, std::shared_ptr<VolCurve>> volsMap;
+    std::unordered_map<std::string, double> bondPricesMap;
+    std::unordered_map<std::string, double> stockPricesMap;
 
-	unordered_map<string, VolCurve> vols;
-	unordered_map<string, RateCurve> curves;
-	unordered_map<string, double> bondPrices;
-	unordered_map<string, double> stockPrices;
+    // Helper for parsing tenor strings if not using Date::dateAddTenor directly for this
+    static Date parseTenorStrToDate(const Date& baseDate, const std::string& tenorStr); // Keep if used by loading
+    static double parseRateValue(const std::string& rateStr); // Keep if used by loading
+
 };
 
-std::ostream& operator<<(std::ostream& os, const Market& obj);
-std::istream& operator>>(std::istream& is, Market& obj);
+std::ostream& operator<<(std::ostream& os, const Market& market);
 
-#endif
+#endif // MARKET_H
+//Updated
