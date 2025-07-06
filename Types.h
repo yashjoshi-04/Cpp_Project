@@ -7,9 +7,9 @@ enum OptionType
     Put,
     BinaryCall,
     BinaryPut,
-    None // Added for non-option trades or when type is not applicable
+    None // Ensure this is present for non-options
 };
 
 #endif // TYPES_H
 
-//Updated
+//Updated Again
