@@ -34,16 +34,16 @@ class BondFactory : public TradeFactory {
 public:
     std::shared_ptr<Trade> createTrade(
         const std::string& underlying_or_bondName,
-        const Date& /*tradeDate*/,      // Unused in Bond constructor directly, issueDate is startDate
+        [[maybe_unused]] const Date& tradeDate,      
         const Date& startDate,
         const Date& endDate,
         double notional,
         double strike_or_coupon_or_fixedRate, 
         int frequency,
-        OptionType /*optionType*/, // Unused by Bond constructor
+        [[maybe_unused]] OptionType optionType, 
         const std::string& discount_curve_name,
-        const std::string& /*vol_curve_name*/, // Unused by Bond constructor
-        const std::string& /*float_leg_forecast_curve_name*/ // Unused by Bond constructor
+        [[maybe_unused]] const std::string& vol_curve_name, 
+        [[maybe_unused]] const std::string& float_leg_forecast_curve_name 
     ) override {
         return std::make_shared<Bond>(
             underlying_or_bondName, 
@@ -61,15 +61,15 @@ class SwapFactory : public TradeFactory {
 public:
     std::shared_ptr<Trade> createTrade(
         const std::string& underlying_or_bondName, 
-        const Date& /*tradeDate*/,      // Unused in Swap constructor, effectiveDate is startDate
+        [[maybe_unused]] const Date& tradeDate,      
         const Date& startDate,        
         const Date& endDate,          
         double notional,
         double strike_or_coupon_or_fixedRate, 
         int frequency,
-        OptionType /*optionType*/, // Unused by Swap constructor
+        [[maybe_unused]] OptionType optionType, 
         const std::string& discount_curve_name, 
-        const std::string& /*vol_curve_name*/, // Unused by Swap constructor
+        [[maybe_unused]] const std::string& vol_curve_name, 
         const std::string& float_leg_forecast_curve_name 
     ) override {
         std::string float_curve_to_use = float_leg_forecast_curve_name.empty() ? discount_curve_name : float_leg_forecast_curve_name;
@@ -90,16 +90,16 @@ class EuropeanOptionFactory : public TradeFactory {
 public:
     std::shared_ptr<Trade> createTrade(
         const std::string& underlying_or_bondName, 
-        const Date& /*tradeDate*/,      // Unused by EuropeanOption constructor
-        const Date& /*startDate*/,        // Unused by EuropeanOption constructor
+        [[maybe_unused]] const Date& tradeDate,      
+        [[maybe_unused]] const Date& startDate,        
         const Date& endDate,          
-        double /*notional*/,           // Notional currently unused by EuropeanOption constructor
+        [[maybe_unused]] double notional,           
         double strike_or_coupon_or_fixedRate, 
-        int /*frequency*/,            // Unused by EuropeanOption constructor
+        [[maybe_unused]] int frequency,            
         OptionType optionType,
         const std::string& discount_curve_name,
         const std::string& vol_curve_name,
-        const std::string& /*float_leg_forecast_curve_name*/ // Unused
+        [[maybe_unused]] const std::string& float_leg_forecast_curve_name 
     ) override {
         return std::make_shared<EuropeanOption>(
             optionType,
@@ -116,16 +116,16 @@ class AmericanOptionFactory : public TradeFactory {
 public:
     std::shared_ptr<Trade> createTrade(
         const std::string& underlying_or_bondName, 
-        const Date& /*tradeDate*/,      // Unused by AmericanOption constructor
-        const Date& /*startDate*/,       // Unused by AmericanOption constructor
+        [[maybe_unused]] const Date& tradeDate,      
+        [[maybe_unused]] const Date& startDate,       
         const Date& endDate,         
-        double /*notional*/,          // Notional currently unused by AmericanOption constructor
+        [[maybe_unused]] double notional,          
         double strike_or_coupon_or_fixedRate, 
-        int /*frequency*/,           // Unused by AmericanOption constructor
+        [[maybe_unused]] int frequency,           
         OptionType optionType,
         const std::string& discount_curve_name,
         const std::string& vol_curve_name,
-        const std::string& /*float_leg_forecast_curve_name*/ // Unused
+        [[maybe_unused]] const std::string& float_leg_forecast_curve_name 
     ) override {
         return std::make_shared<AmericanOption>(
             optionType,
@@ -139,5 +139,3 @@ public:
 };
 
 #endif // TRADE_FACTORY_H
-
-//Updated Again
