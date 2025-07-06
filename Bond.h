@@ -1,38 +1,47 @@
-#pragma once
+#ifndef BOND_H // Standard include guard
+#define BOND_H
+
 #include "Trade.h"
-#include "Market.h"
+#include "Market.h" // For Market in Pv
+#include <string>
+#include <vector>   // For cashflow schedule if generated internally
 
 class Bond : public Trade {
-
 public:
-	Bond(const std::string& name, const Date& tradeDate, const Date& start, const Date& end,
-		double notional, double couponRate, int couponFreq, double price) : Trade("BondTrade", tradeDate) {
-		bondName = name;
-		startDate = start;
-		endDate = end;
-		bondNotional = notional;
-		this->couponRate = couponRate;
-		frequency = couponFreq;
-		tradePrice = price;
-	}
+    // Constructor
+    Bond(const std::string& instrumentName, 
+         const Date& issueDate,         // Typically the trade date for a new issue
+         const Date& maturityDate,
+         double principal,             // Notional or Principal
+         double couponRate,            // Annual coupon rate (e.g., 0.05 for 5%)
+         int couponFrequency,         // Number of coupon payments per year (e.g., 1 for annual, 2 for semi-annual)
+         const std::string& discountCurveName); // Name of the curve to use for discounting
 
-	double Payoff(double yield) const; // implement this as theoretical price
+    // Override virtual functions from Trade
+    double Pv(const Market& mkt) const override;
+    double Payoff(double marketPrice) const override; // May not be used if Pv is cashflow based
+    Date getMaturityDate() const override;
+    std::string getUnderlyingName() const override; // Bond name itself
+    std::string getRateCurveName() const override;  // Discount curve for this bond
+
+    // Specific getters for Bond properties (optional, but can be useful)
+    double getPrincipal() const { return principal; }
+    double getCouponRate() const { return couponRate; }
+    int getCouponFrequency() const { return couponFrequency; }
 
 private:
-	std::string bondName;
-	double bondNotional;
-	double couponRate;
-	double tradePrice;
-	int frequency; // coupon frequency per year, e.g., 2 for semi-annual
-	Date startDate;
-	Date endDate;
+    std::string instrumentName; // e.g., "US Treasury Bond 2.5% 2030"
+    Date issueDate;        // Could be same as tradeDate
+    Date maturityDate;
+    double principal;
+    double couponRate;       // Annual rate
+    int couponFrequency;    // Payments per year
+    std::string discountCurveName; // Name of the rate curve to use for discounting
 
-public: // Added public getters for necessary members
-	inline const Date& getStartDate() const { return startDate; }
-	inline const Date& getEndDate() const { return endDate; }
-	inline double getNotional() const { return bondNotional; }
-	inline double getCouponRate() const { return couponRate; }
-	inline int getCouponFreq() const { return frequency; }
-	inline const std::string& getInstrumentName() const { return bondName; } // Already present
-	inline double getPrice() const { return tradePrice; } // Getter for MTM price
+    // Helper to generate cashflow dates and amounts (optional internal detail)
+    // struct Cashflow { Date paymentDate; double amount; };
+    // std::vector<Cashflow> generateCashflows(const Date& settlementDate) const;
 };
+
+#endif // BOND_H
+//Updated
