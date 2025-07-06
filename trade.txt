@@ -1,8 +1,8 @@
-id;type;trade_dt;start_dt;end_dt;notional;instrument;rate;strike;freq;option;
-1;swap;2025-01-01;2025-01-03;2027-01-03;10000000;usd-sofr;0.045;0;0.5;na;
-2;swap;2025-01-01;2025-01-03;2029-01-03;20000000;usd-sofr;0.03;0;0.25;na;
-3;bond;2025-01-01;2025-01-03;2035-01-03;500000;usd-gov;0.025;0;0.5;na;
-4;european;2025-01-01;2026-01-03;2026-01-03;100000;APPL;0;625;0.5;call;
-5;european;2025-01-01;2027-01-03;2027-01-03;200000;APPL;0;700;0.5;put;
-6;american;2025-01-01;2025-01-03;2026-01-03;100000;APPL;0;625;0.5;call;
-7;american;2025-01-01;2025-01-03;2027-01-03;200000;APPL;0;700;0.5;put;
+id;type;trade_dt;start_dt;end_dt;notional;instrument;rate;strike;freq;option;discount_curve;vol_curve;float_forecast_curve
+1;swap;2025-01-01;2025-01-03;2027-01-03;10000000;usd-sofr;0.045;0;0.5;na;USD-SOFR;NONE;USD-SOFR
+2;swap;2025-01-01;2025-01-03;2029-01-03;20000000;usd-sofr;0.03;0;0.25;na;USD-SOFR;NONE;USD-SOFR
+3;bond;2025-01-01;2025-01-03;2035-01-03;500000;usd-gov;0.025;0;0.5;na;USD-SOFR;NONE;
+4;european;2025-01-01;2026-01-03;2026-01-03;100000;APPL;0;625;0.5;call;USD-SOFR;VOL_APPL;
+5;european;2025-01-01;2027-01-03;2027-01-03;200000;APPL;0;700;0.5;put;USD-SOFR;VOL_APPL;
+6;american;2025-01-01;2025-01-03;2026-01-03;100000;APPL;0;625;0.5;call;USD-SOFR;VOL_APPL;
+7;american;2025-01-01;2025-01-03;2027-01-03;200000;APPL;0;700;0.5;put;USD-SOFR;VOL_APPL;
