@@ -2,11 +2,14 @@
 #define TYPES_H
 
 enum OptionType 
-{   
-    Call, 
-    Put, 
-    BinaryCall, 
-    BinaryPut
+{
+    Call,
+    Put,
+    BinaryCall,
+    BinaryPut,
+    None // Added for non-option trades or when type is not applicable
 };
 
-#endif
+#endif // TYPES_H
+
+//Updated
