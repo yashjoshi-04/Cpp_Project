@@ -1,5 +1,6 @@
 #include "MathUtils.h"
 #include <stdexcept> // For std::invalid_argument
+#include <algorithm> 
 
 // Cumulative Distribution Function for Standard Normal Distribution
 double normalCDF(double x) {
