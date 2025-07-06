@@ -22,7 +22,7 @@ namespace imp {
 } 
 
 namespace {
-    std::string toLowerCppLocal(const std::string& str) { // Renamed to avoid conflict if toLowerMain is also global
+    std::string toLowerCppLocalMarket(const std::string& str) { // Renamed to be unique
         std::string data = str;
         std::transform(data.begin(), data.end(), data.begin(),
             [](unsigned char c){ return std::tolower(c); });
@@ -46,10 +46,11 @@ double RateCurve::getRate(const Date& tenor) const {
         std::cerr << "Warning: RateCurve '" << name << "' is empty. Returning 0.0 for getRate." << std::endl;
         return 0.0; 
     }
+    // Corrected comparisons:
     if (tenor <= tenorDates.front()) { 
         return rates.front();
     }
-    if (tenor >= tenorDates.back()) { 
+    if (!(tenor < tenorDates.back())) { // tenor >= tenorDates.back()
         return rates.back();
     }
     auto it = std::lower_bound(tenorDates.begin(), tenorDates.end(), tenor);
@@ -98,10 +99,11 @@ double VolCurve::getVol(const Date& tenor) const {
         std::cerr << "Warning: VolCurve '" << name << "' is empty. Returning 0.0 for getVol." << std::endl;
         return 0.0; 
     }
+    // Corrected comparisons:
     if (tenor <= tenors.front()) {
         return vols.front();
     }
-    if (tenor >= tenors.back()) {
+    if (!(tenor < tenors.back())) { // tenor >= tenors.back()
         return vols.back();
     }
     auto it = std::lower_bound(tenors.begin(), tenors.end(), tenor);
@@ -223,7 +225,8 @@ std::shared_ptr<const RateCurve> Market::getCurve(const std::string& curveName) 
     if (it != curvesMap.end()) {
         return it->second;
     }
-    std::cerr << "Warning: Rate curve '" << curveName << "' not found in Market. Returning nullptr." << std::endl;
+    // Removed cerr for const getter, as it might be called to check existence.
+    // Let caller handle nullptr.
     return nullptr;
 }
 std::shared_ptr<RateCurve> Market::getCurve(const std::string& curveName) {
@@ -231,7 +234,7 @@ std::shared_ptr<RateCurve> Market::getCurve(const std::string& curveName) {
     if (it != curvesMap.end()) {
         return it->second;
     }
-    std::cerr << "Warning: Rate curve '" << curveName << "' not found in Market. Returning nullptr." << std::endl;
+    std::cerr << "Warning: Rate curve '" << curveName << "' not found in Market (non-const get). Returning nullptr." << std::endl;
     return nullptr;
 }
 std::shared_ptr<const VolCurve> Market::getVolCurve(const std::string& volCurveName) const {
@@ -239,7 +242,6 @@ std::shared_ptr<const VolCurve> Market::getVolCurve(const std::string& volCurveN
     if (it != volsMap.end()) {
         return it->second;
     }
-    std::cerr << "Warning: Vol curve '" << volCurveName << "' not found in Market. Returning nullptr." << std::endl;
     return nullptr;
 }
 std::shared_ptr<VolCurve> Market::getVolCurve(const std::string& volCurveName) {
@@ -247,7 +249,7 @@ std::shared_ptr<VolCurve> Market::getVolCurve(const std::string& volCurveName) {
     if (it != volsMap.end()) {
         return it->second;
     }
-    std::cerr << "Warning: Vol curve '" << volCurveName << "' not found in Market. Returning nullptr." << std::endl;
+    std::cerr << "Warning: Vol curve '" << volCurveName << "' not found in Market (non-const get). Returning nullptr." << std::endl;
     return nullptr;
 }
 
@@ -269,15 +271,16 @@ double Market::parseRateValue(const std::string& rateStr) {
         multiplier = 0.01;
     }
     try {
+        // Trim potential whitespace again before stod
+        cleanedStr.erase(0, cleanedStr.find_first_not_of(" \t\r\n"));
+        cleanedStr.erase(cleanedStr.find_last_not_of(" \t\r\n") + 1);
         return std::stod(cleanedStr) * multiplier;
     } catch (const std::exception& e) {
-        std::cerr << "Warning: Could not parse rate value '" << rateStr << "': " << e.what() << std::endl;
+        std::cerr << "Warning: Could not parse rate value '" << rateStr << "' (cleaned: '" << cleanedStr << "'): " << e.what() << std::endl;
         return 0.0; 
     }
 }
 
-// curveNameInFile parameter is effectively ignored if the first line is the curve name.
-// marketCurveNameToStore is how it will be stored in the map.
 bool Market::loadCurveDataFromFile(const std::string& filePath, 
                                  const std::string& curveNameInFileHint, 
                                  const std::string& marketCurveNameToStore) {
@@ -290,41 +293,43 @@ bool Market::loadCurveDataFromFile(const std::string& filePath,
     std::string actualCurveName = marketCurveNameToStore;
     std::string line;
     bool firstLineRead = false;
-    bool firstLineIsHeader = false;
+    bool firstLineIsData = false;
 
-    // Peek at first line to see if it's a curve name or data
+    std::streampos originalPos = file.tellg();
     if (std::getline(file, line)) {
-        firstLineRead = true;
         std::istringstream iss_first(line);
-        std::string part1, part2, part3;
-        iss_first >> part1 >> part2 >> part3; // Try to read up to 3 parts
-        if (part2.empty() && !part1.empty() && part1.find(':') == std::string::npos && part1.find('%') == std::string::npos) {
+        std::string part1, part2;
+        iss_first >> part1; // Read first token
+        if (iss_first >> part2 || part1.find(':') != std::string::npos || part1.find('%') != std::string::npos) {
+            // If there's a second token, or the first token contains ':' or '%', it's likely data or a header with data format
+            firstLineIsData = true;
+        } else {
             // Likely a curve name if it's a single token-like string without typical data chars
             actualCurveName = part1;
             // std::cout << "Info: Deduced curve name from file '" << filePath << "' as '" << actualCurveName << "'." << std::endl;
-        } else {
-            // Not a simple name, assume it's data or a header, rewind and process normally
-            firstLineIsHeader = (toLowerCppLocal(line).find("tenor") != std::string::npos || toLowerCppLocal(line).find("date") != std::string::npos);
-            file.clear(); // Clear EOF flags if any
-            file.seekg(0, std::ios::beg);
         }
+        file.clear(); 
+        file.seekg(originalPos); // Rewind to process all lines or the first line again if it was data
     }
-    if (actualCurveName.empty()) actualCurveName = curveNameInFileHint; // Fallback if no name deduced
+    if (actualCurveName.empty()) actualCurveName = curveNameInFileHint; 
     if (actualCurveName.empty()) {
         std::cerr << "Error: No curve name could be determined for data in file: " << filePath << std::endl;
         return false;
     }
 
     auto curve = std::make_shared<RateCurve>(actualCurveName);
-    bool headerSkipped = firstLineIsHeader; // If first line was already identified as header
+    bool headerSkipped = false; 
+
+    // If the first line was identified as the curve name, skip it in the data reading loop.
+    if (!firstLineIsData && firstLineRead) {
+        std::getline(file, line); // Consume the name line already processed
+    }
 
     while (std::getline(file, line)) {
-        if (!firstLineRead && !headerSkipped && (toLowerCppLocal(line).find("tenor") != std::string::npos || toLowerCppLocal(line).find("date") != std::string::npos)){
+        if (!headerSkipped && (toLowerCppLocalMarket(line).find("tenor") != std::string::npos || toLowerCppLocalMarket(line).find("rate") != std::string::npos)){
              headerSkipped = true; 
              continue;
         }
-        firstLineRead = false; // Reset flag after first potential line has been processed or re-processed
-
         if (line.empty() || line[0] == '#' || line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
         
         std::istringstream iss(line);
@@ -353,28 +358,54 @@ bool Market::loadCurveDataFromFile(const std::string& filePath,
         curve->addRate(tenorDate, rate);
     }
     if (!curve->isEmpty()) {
-        addCurve(actualCurveName, curve); // Store with potentially deduced name
+        addCurve(actualCurveName, curve); 
         return true;
     }
     return false;
 }
 
-bool Market::loadVolDataFromFile(const std::string& filePath, const std::string& volCurveNameInFileHint, const std::string& marketVolCurveNameToStore) {
+bool Market::loadVolDataFromFile(const std::string& filePath, [[maybe_unused]] const std::string& volCurveNameInFileHint, const std::string& marketVolCurveNameToStore) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open vol data file: " << filePath << std::endl;
         return false;
     }
-    // Vol files usually don't name the curve inside, use the provided name.
-    auto volCurve = std::make_shared<VolCurve>(marketVolCurveNameToStore);
+    std::string actualVolCurveName = marketVolCurveNameToStore;
     std::string line;
+    bool firstLineRead = false;
+    bool firstLineIsData = false;
+
+    std::streampos originalPos = file.tellg();
+    if (std::getline(file, line)) {
+        std::istringstream iss_first(line);
+        std::string part1, part2;
+        iss_first >> part1; 
+        if (iss_first >> part2 || part1.find(':') != std::string::npos || part1.find('%') != std::string::npos) {
+            firstLineIsData = true;
+        } else {
+            actualVolCurveName = part1;
+        }
+        file.clear(); 
+        file.seekg(originalPos); 
+    }
+    if (actualVolCurveName.empty() && volCurveNameInFileHint.empty()) {
+         std::cerr << "Error: No vol curve name for data in: " << filePath << std::endl; return false;
+    } else if (actualVolCurveName.empty()) {
+        actualVolCurveName = volCurveNameInFileHint;
+    }
+    
+    auto volCurve = std::make_shared<VolCurve>(actualVolCurveName);
     bool headerSkipped = false;
+    if (!firstLineIsData && firstLineRead) {
+        std::getline(file, line); // Consume the name line
+    }
+
     while (std::getline(file, line)) {
-        if (line.empty() || line[0] == '#' || line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
-        if (!headerSkipped && (toLowerCppLocal(line).find("tenor") != std::string::npos || toLowerCppLocal(line).find("expiry") != std::string::npos) ){
+        if (!headerSkipped && (toLowerCppLocalMarket(line).find("tenor") != std::string::npos || toLowerCppLocalMarket(line).find("expiry") != std::string::npos || toLowerCppLocalMarket(line).find("volatility") != std::string::npos) ){
              headerSkipped = true;
              continue;
         }
+        if (line.empty() || line[0] == '#' || line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
         std::istringstream iss(line);
         std::string tenorPart, volPart_str;
         if (std::getline(iss, tenorPart, ':') && std::getline(iss, volPart_str)) {
@@ -401,7 +432,7 @@ bool Market::loadVolDataFromFile(const std::string& filePath, const std::string&
         volCurve->addVol(tenorDate, vol);
     }
     if (!volCurve->isEmpty()) {
-        addVolCurve(marketVolCurveNameToStore, volCurve);
+        addVolCurve(actualVolCurveName, volCurve);
         return true;
     }
     return false;
@@ -414,8 +445,6 @@ bool Market::loadStockPricesFromFile(const std::string& filePath) {
         return false;
     }
     std::string line;
-    std::string stockName;
-    double stockPrice;
     while (std::getline(file, line)) {
         if (line.empty() || line[0] == '#' || line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
         std::istringstream iss(line);
@@ -426,13 +455,20 @@ bool Market::loadStockPricesFromFile(const std::string& filePath) {
             pricePart.erase(0, pricePart.find_first_not_of(" \t"));
             pricePart.erase(pricePart.find_last_not_of(" \t") + 1);
             try {
-                stockPrice = std::stod(pricePart);
+                double stockPrice = std::stod(pricePart);
                 addStockPrice(namePart, stockPrice);
             } catch (const std::exception& e) {
                 std::cerr << "Warning: Could not parse stock price for '" << namePart << "' from value '" << pricePart << "'. " << e.what() << std::endl;
             }
-        } else {
-            std::cerr << "Warning: Malformed line in stock prices file '" << filePath << "': " << line << std::endl;
+        } else { // Fallback for space separated if colon not found
+            std::istringstream iss_space(line); // re-init with original line
+            std::string stockName_space;
+            double stockPrice_space;
+            if (iss_space >> stockName_space >> stockPrice_space) {
+                 addStockPrice(stockName_space, stockPrice_space);
+            } else {
+                 std::cerr << "Warning: Malformed line in stock prices file '" << filePath << "': " << line << std::endl;
+            }
         }
     }
     return true; 
@@ -445,8 +481,6 @@ bool Market::loadBondPricesFromFile(const std::string& filePath) {
         return false;
     }
     std::string line;
-    std::string bondName;
-    double bondPrice;
     while (std::getline(file, line)) {
         if (line.empty() || line[0] == '#' || line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
         std::istringstream iss(line);
@@ -457,13 +491,20 @@ bool Market::loadBondPricesFromFile(const std::string& filePath) {
             pricePart.erase(0, pricePart.find_first_not_of(" \t"));
             pricePart.erase(pricePart.find_last_not_of(" \t") + 1);
             try {
-                bondPrice = std::stod(pricePart);
+                double bondPrice = std::stod(pricePart);
                 addBondPrice(namePart, bondPrice);
             } catch (const std::exception& e) {
                 std::cerr << "Warning: Could not parse bond price for '" << namePart << "' from value '" << pricePart << "'. " << e.what() << std::endl;
             }
-        } else {
-            std::cerr << "Warning: Malformed line in bond prices file '" << filePath << "': " << line << std::endl;
+        } else { // Fallback for space separated
+            std::istringstream iss_space(line);
+            std::string bondName_space;
+            double bondPrice_space;
+            if (iss_space >> bondName_space >> bondPrice_space) {
+                addBondPrice(bondName_space, bondPrice_space);
+            } else {
+                std::cerr << "Warning: Malformed line in bond prices file '" << filePath << "': " << line << std::endl;
+            }
         }
     }
     return true;
@@ -473,5 +514,3 @@ std::ostream& operator<<(std::ostream& os, const Market& market) {
     os << "Market: " << market.name << " AsOf: " << market.asOf.toString();
     return os;
 }
-
-//Updated
