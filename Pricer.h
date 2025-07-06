@@ -1,82 +1,62 @@
-#ifndef _PRICER
-#define _PRICER
+#ifndef PRICER_H
+#define PRICER_H
 
 #include <vector>
 #include <cmath>
-#include <iostream>
+#include <memory>
 #include <string>
 
-#include "Trade.h"
-#include "TreeProduct.h"
-#include "Market.h"
-#include "Bond.h"
-#include "Swap.h"
+// Forward declarations
+class Market;
+class Trade;
+class TreeProduct;
+class Bond;
+class Swap;
 
 class Pricer {
 public:
-	virtual ~Pricer() {}
-	virtual double Price(const Market& mkt, Trade* trade);
+    virtual ~Pricer() = default;
+    virtual double Price(const Market& mkt, const std::shared_ptr<Trade>& trade) const;
 
 protected:
-	virtual double PriceTree(const Market& mkt, const TreeProduct& trade) { return 0; };
-	virtual double PriceBond(const Market& mkt, Bond* bond); // Added for bond DCF pricing
+    // PriceTree is the core method for options, to be implemented by derived tree pricers.
+    // It's marked const because the pricer itself (its configuration like N_steps) doesn't change per call,
+    // but it will need to calculate tree parameters (u,d,p,etc.) based on mkt and product.
+    // These calculations will happen inside PriceTree or a helper it calls.
+    virtual double PriceTree(const Market& mkt, const TreeProduct& product) const = 0;
 };
 
-class BinomialTreePricer : public Pricer
-{
+class BinomialTreePricer : public Pricer {
 public:
-	BinomialTreePricer(int N) :
-		nTimeSteps(N),
-		states(N + 1),
-		u(0.0), d(0.0), p(0.0), currentSpot(0.0),
-		fixedRiskFreeRate_(-1.0), Df_(0.0), dT_(0.0) // Initialize all members
-	{
-	}
-
-	double PriceTree(const Market& mkt, const TreeProduct& trade) override;
-	virtual void setFixedRiskFreeRate(double rate) { fixedRiskFreeRate_ = rate; }
+    BinomialTreePricer(int nSteps) : N(nSteps) {}
 
 protected:
-	virtual void ModelSetup(double S0, double sigma, double rate, double dt);
+    // These members will be populated by a specific model's setup logic (e.g., CRR's ModelSetup)
+    // They are effectively 'cached' or 'configured' per product pricing call within PriceTree.
+    // Making them mutable allows PriceTree (which is const) to modify them via a helper method.
+    mutable int N; // Number of time steps
+    mutable double deltaT; // Time step duration
+    mutable double u;      // Up factor
+    mutable double d;      // Down factor
+    mutable double p_up;   // Risk-neutral probability of up move
+    mutable double p_down; // Risk-neutral probability of down move
+    mutable double df_step; // Discount factor per step
 
-	virtual double GetSpot(int ti, int si) const { return currentSpot * std::pow(u, ti - si) * std::pow(d, si); };
-	virtual inline double GetProbUp() const { return p; };
-	virtual double GetProbDown() const { return 1 - p; };
-
-	int nTimeSteps;
-	std::vector<double> states;
-	double u;
-	double d;
-	double p;
-	double currentSpot;
-	double fixedRiskFreeRate_;
-	double Df_;
-	double dT_;
+    // Pure virtual method for specific model (CRR, JRR) to set up these parameters
+    virtual void SetupTreeParams(const Market& mkt, const TreeProduct& product) const = 0;
 };
 
-class CRRBinomialTreePricer : public BinomialTreePricer
-{
+class CRRBinomialTreePricer : public BinomialTreePricer {
 public:
-	CRRBinomialTreePricer(int N) : BinomialTreePricer(N) {}
+    CRRBinomialTreePricer(int nSteps) : BinomialTreePricer(nSteps) {}
 
-	double PriceTree(const Market& mkt, const TreeProduct& trade) override;
-
-protected:
-	void ModelSetup(double S0, double sigma, double rate, double dt) override;
-	void ModelSetup(const Market& mkt, const TreeProduct& product);
-
-	double GetSpot(int ti, int si) const override {
-		return currentSpot * std::pow(u, ti - 2 * si);
-	}
-};
-
-class JRRNBinomialTreePricer : public BinomialTreePricer
-{
-public:
-	JRRNBinomialTreePricer(int N) : BinomialTreePricer(N) {}
+    // Main pricing method for tree products using CRR model
+    double PriceTree(const Market& mkt, const TreeProduct& product) const override;
 
 protected:
-	void ModelSetup(double S0, double sigma, double rate, double dt) override;
+    // CRR-specific implementation to set u, d, p, etc.
+    void SetupTreeParams(const Market& mkt, const TreeProduct& product) const override;
 };
 
-#endif
+#endif // PRICER_H
+//Updated
